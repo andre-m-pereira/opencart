@@ -47,48 +47,7 @@ $url = new Url(HTTP_SERVER, $config->get('config_secure') ? HTTPS_SERVER : HTTP_
 $registry->set('url', $url);
 
 // Log
-$log = new Log($config->get('config_error_filename'));
-$registry->set('log', $log);
-
-function error_handler($code, $message, $file, $line) {
-	global $log, $config;
-
-	// error suppressed with @
-	if (error_reporting() === 0) {
-		return false;
-	}
-
-	switch ($code) {
-		case E_NOTICE:
-		case E_USER_NOTICE:
-			$error = 'Notice';
-			break;
-		case E_WARNING:
-		case E_USER_WARNING:
-			$error = 'Warning';
-			break;
-		case E_ERROR:
-		case E_USER_ERROR:
-			$error = 'Fatal Error';
-			break;
-		default:
-			$error = 'Unknown';
-			break;
-	}
-
-	if ($config->get('config_error_display')) {
-		echo '<b>' . $error . '</b>: ' . $message . ' in <b>' . $file . '</b> on line <b>' . $line . '</b>';
-	}
-
-	if ($config->get('config_error_log')) {
-		$log->write('PHP ' . $error . ':  ' . $message . ' in ' . $file . ' on line ' . $line);
-	}
-
-	return true;
-}
-
-// Error Handler
-set_error_handler('error_handler');
+$registry->set('log', new Log($config->get('config_error_filename')));
 
 // Request
 $request = new Request();
@@ -149,30 +108,26 @@ $registry->set('event', $event);
 $query = $db->query("SELECT * FROM `" . DB_PREFIX . "event` WHERE `trigger` LIKE 'admin/%'");
 
 foreach ($query->rows as $result) {
-	$event->register($substr($result['trigger'], strrpos($result['trigger'], '/') + 1), new Action('controller/' . $result['action']));
+	$event->register(substr($result['trigger'], strrpos($result['trigger'], '/') + 1), new Action($result['action']));
 }
 
 // Front Controller
 $controller = new Front($registry);
 
+// Error Handling
+$controller->addPreAction(new Action('event/error'));
+
 // Compile Sass
-$controller->addPreAction(new Action('common/sass'));
+$controller->addPreAction(new Action('event/sass'));
 
 // Login
-$controller->addPreAction(new Action('common/login/check'));
+$controller->addPreAction(new Action('event/login'));
 
 // Permission
-$controller->addPreAction(new Action('error/permission/check'));
-
-// Router
-if (isset($request->get['route'])) {
-	$action = new Action($request->get['route']);
-} else {
-	$action = new Action('common/dashboard');
-}
+$controller->addPreAction(new Action('event/permission'));
 
 // Dispatch
-$controller->dispatch($action, new Action('error/not_found'));
+$controller->dispatch(new Action('event/route'), new Action('error/not_found'));
 
 // Output
 $response->output();

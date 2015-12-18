@@ -2,11 +2,12 @@
 class Event {
 	protected $registry;
 	public $data = array();
+	protected $current;
 
 	public function __construct($registry) {
 		$this->registry = $registry;
 	}
-		
+
 	public function register($trigger, $action) {
 		$this->data[$trigger][] = $action;
 	}
